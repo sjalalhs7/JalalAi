@@ -1,0 +1,117 @@
+JALALAI AGENT - HANDOFF FILE (give this whole file to any AI assistant)
+================================================================
+
+WHAT THIS PROJECT IS
+A single-file web app called "JalalAI Agent" - one dashboard with 6
+assistant panels (Chat, Jalal Voice, Jalal Mind, Jalal Commands,
+Jalal Docs, Jalal Shield). It's plain HTML/CSS/JavaScript, no
+framework, no backend required for most features. It calls an
+OpenAI-compatible /chat/completions API using a key the user enters
+themselves in a Settings panel (stored in browser localStorage).
+
+CURRENT WORKING LIVE LINK
+https://claude.ai/artifact/Pro2dsNJce9PtXQPv13hNE
+(Works today. Private link, not the user's own domain.)
+
+THE ONE UNRESOLVED PROBLEM
+The user wants to use a GEMINI API key (from Google AI Studio).
+Google's Gemini API does NOT allow direct browser JavaScript calls
+(it blocks them via CORS - this is a real, confirmed, documented
+restriction on Google's side: see
+https://discuss.ai.google.dev/t/gemini-api-cors-error-with-openai-compatability/58619
+and
+https://github.com/CattleZoe/Gemini-proxy ).
+This means pasting a Gemini key straight into the app's Settings
+(Base URL: https://generativelanguage.googleapis.com/v1beta/openai/)
+will fail from any browser-based app, not just this one - it is not
+specific to this app or a mistake the user made.
+
+THE FIX (needs ONE small piece of infrastructure: a CORS relay)
+A tiny server-side relay (a few lines of code) that:
+ 1. Receives the request from the browser (which Google will accept,
+    since relays allow any origin by sending CORS headers)
+ 2. Forwards it to https://generativelanguage.googleapis.com
+ 3. Returns Google's response back to the browser with CORS headers added
+
+Ready-to-deploy Cloudflare Worker code for this (free tier, no credit
+card needed to deploy a Worker on workers.cloudflare.com):
+
+---- PASTE THIS AS THE WORKER CODE ----
+export default {
+  async fetch(request) {
+    const url = new URL(request.url);
+    const target = "https://generativelanguage.googleapis.com" + url.pathname.replace("/gemini", "") + url.search;
+    if (request.method === "OPTIONS") {
+      return new Response(null, { headers: corsHeaders() });
+    }
+    const resp = await fetch(target, {
+      method: request.method,
+      headers: { "Content-Type": "application/json", "Authorization": request.headers.get("Authorization") || "" },
+      body: request.method !== "GET" ? await request.text() : undefined,
+    });
+    const body = await resp.text();
+    return new Response(body, { status: resp.status, headers: { ...corsHeaders(), "Content-Type": "application/json" } });
+  },
+};
+function corsHeaders() {
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  };
+}
+---- END WORKER CODE ----
+
+Deploy steps (manual, ~2 minutes, on workers.cloudflare.com):
+ 1. Sign in (free)
+ 2. "Create Worker" -> give it a name not already used in the account
+ 3. Delete sample code, paste the code above
+ 4. Click "Deploy"
+ 5. It gives a URL like https://WORKER-NAME.ACCOUNT.workers.dev
+
+Then in JalalAI Agent's Settings:
+ - API Key: the Gemini key
+ - Base URL: https://WORKER-NAME.ACCOUNT.workers.dev/gemini/v1beta/openai
+ - Model name: whatever exact model ID is currently listed in Google
+   AI Studio (model names change - e.g. "gemini-3-flash-preview" was
+   current as of this writing, but verify)
+
+WHY THIS WASN'T AUTOMATED FOR THE USER ALREADY (for the next
+assistant's awareness, so you don't repeat failed attempts):
+ - No GitHub connector was available in that session, so pushing
+   code to GitHub automatically wasn't possible there.
+ - A Netlify connector WAS available, but its only general-purpose
+   tool for arbitrary HTML/code is built specifically for "Claude
+   Design" exports and silently produces broken/empty deploys for
+   anything else - confirmed by testing (resulting 404).
+ - A Macaly Cloud connector was available and successfully BUILT a
+   full working React/TanStack port of this same app (typecheck
+   passed, preview worked), but publishing it to a permanent public
+   domain was blocked by Macaly's free-tier limit ("Upgrade to
+   publish more apps").
+ - A Cloudflare connector was available but only exposed READ tools
+   for Workers (list/get existing ones) - no create/deploy tool was
+   exposed through that MCP connector, so automated Worker deployment
+   wasn't possible through it either.
+ - None of these are the user's fault or mistakes - they are real
+   tool/platform limitations encountered while trying to automate this
+   for them.
+
+IF THE NEXT ASSISTANT HAS BROADER TOOL ACCESS (e.g. can actually run
+shell commands with real internet access, or has genuine deploy
+credentials), the fix is simple and small: deploy the Worker code
+above to Cloudflare (or equivalently, any serverless platform that
+can add CORS headers and forward the request - Vercel Edge Functions,
+Deno Deploy, a $0 Render/Railway free web service, etc. all work the
+same way).
+
+ALTERNATIVE THAT NEEDS NO DEPLOYMENT AT ALL
+Use an OpenAI API key instead of Gemini in the same app - OpenAI's
+API does not have this CORS restriction, so it works immediately with
+no relay needed. This sidesteps the whole problem if the user doesn't
+specifically need Gemini.
+
+THE APP FILE ITSELF
+Attached separately in this chat as: jalalai-agent.html
+(single self-contained file, open directly in any browser, already
+tested and working for everything except the Gemini-CORS issue above)
