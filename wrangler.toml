@@ -1,0 +1,19 @@
+name = "jalalai-api"
+main = "index.js"
+compatibility_date = "2026-10-29"
+workers_dev = true
+
+[vars]
+# Set ALLOWED_ORIGINS to the exact deployed Pages origin(s), comma-separated.
+ALLOWED_ORIGINS = "https://YOUR-PROJECT.pages.dev"
+ALLOWED_MODELS = "gemini-2.5-flash"
+RATE_LIMIT = "30"
+RATE_WINDOW_SECONDS = "60"
+
+[[durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RateLimiter"]
