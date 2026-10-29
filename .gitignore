@@ -1,0 +1,17 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+.dev.vars
+.wrangler/
+node_modules/
+
+# OS/editor artifacts
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Build/test artifacts
+coverage/
+*.log

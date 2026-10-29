@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JalalAI Agent</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='f' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%235ad1ff'/%3E%3Cstop offset='100%25' stop-color='%237a5cff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='4' y='4' width='92' height='92' rx='26' fill='url(%23f)'/%3E%3Ctext x='50' y='71' text-anchor='middle' font-family='Arial' font-weight='800' font-size='56' fill='white'%3EJ%3C/text%3E%3C/svg%3E">
+<style>:root{
+  --bg:#07070f;
+  --text:#eef0ff;
+  --muted:#a6acd6;
+  --glass-bg:rgba(255,255,255,0.06);
+  --glass-br:rgba(255,255,255,0.18);
+  --glass-blur:18px;
+  --ice:#5ad1ff;
+  --water:#2a8cff;
+  --fire:#ff7a3d;
+  --rainbow1:#ff5caa;
+  --rainbow2:#7a5cff;
+  --rainbow3:#5cffd0;
+  --radius:22px;
+  --shadow: 0 10px 40px rgba(0,0,0,0.45);
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#eef1ff; --text:#14162b; --muted:#565b8c;
+    --glass-bg:rgba(255,255,255,0.55); --glass-br:rgba(255,255,255,0.8);
+  }
+}
+:root[data-theme="dark"]{ --bg:#07070f; --text:#eef0ff; --muted:#a6acd6; --glass-bg:rgba(255,255,255,0.06); --glass-br:rgba(255,255,255,0.18); }
+
+*{box-sizing:border-box;}
+html,body{height:100%;margin:0;}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  overflow-x:hidden;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+
+/* ===== Morphism blended background: ice + water + fire + rainbow blobs ===== */
+.bg-layer{position:fixed; inset:0; z-index:-2; overflow:hidden; background:var(--bg);}
+.blob{position:absolute; border-radius:50%; filter:blur(70px); opacity:.55; mix-blend-mode:screen;}
+.blob.ice{width:46vw;height:46vw; top:-10%; left:-8%; background:radial-gradient(circle, var(--ice), transparent 70%); animation:float1 22s ease-in-out infinite;}
+.blob.water{width:50vw;height:50vw; bottom:-15%; left:5%; background:radial-gradient(circle, var(--water), transparent 70%); animation:float2 26s ease-in-out infinite;}
+.blob.fire{width:40vw;height:40vw; top:10%; right:-10%; background:radial-gradient(circle, var(--fire), transparent 70%); animation:float3 20s ease-in-out infinite;}
+.blob.rainbow{width:55vw;height:55vw; bottom:-20%; right:-10%; background:conic-gradient(from 0deg, var(--rainbow1), var(--rainbow2), var(--rainbow3), var(--rainbow1)); animation:spin 30s linear infinite, float1 24s ease-in-out infinite;}
+.noise{position:fixed; inset:0; z-index:-1; pointer-events:none; opacity:.04;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
+@keyframes float1{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(4vw,6vh) scale(1.08);}}
+@keyframes float2{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(-5vw,-4vh) scale(1.1);}}
+@keyframes float3{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(-4vw,5vh) scale(0.95);}}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ===== Glass panel base (morphism) ===== */
+.glass{
+  background:var(--glass-bg);
+  border:1px solid var(--glass-br);
+  backdrop-filter:blur(var(--glass-blur)) saturate(160%);
+  -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(160%);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+}
+
+/* ===== Navbar ===== */
+header.nav{
+  position:sticky; top:0; z-index:40;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:calc(12px + env(safe-area-inset-top,0px)) 18px 12px;
+  margin:10px; border-radius:18px;
+}
+.brand{display:flex; align-items:center; gap:10px; font-weight:800; font-size:19px; letter-spacing:.3px;}
+.brand .logo{width:38px; height:38px; border-radius:11px; box-shadow:0 2px 10px rgba(0,0,0,.35);}
+.nav-links{display:flex; gap:6px; overflow-x:auto;}
+.nav-links button{
+  background:transparent; border:1px solid var(--glass-br); color:var(--muted);
+  padding:8px 14px; border-radius:20px; font-size:13px; cursor:pointer; white-space:nowrap;
+}
+.nav-links button.active{color:#fff; background:linear-gradient(135deg,var(--water),var(--rainbow2)); border-color:transparent;}
+.theme-switch{display:flex; gap:6px;}
+.theme-dot{width:22px; height:22px; border-radius:50%; cursor:pointer; border:2px solid rgba(255,255,255,.4);}
+.theme-dot.ice{background:var(--ice);} .theme-dot.water{background:var(--water);}
+.theme-dot.fire{background:var(--fire);} .theme-dot.rainbow{background:conic-gradient(var(--rainbow1),var(--rainbow2),var(--rainbow3));}
+
+/* ===== Hero / 3D logo ===== */
+.hero{ padding:36px 20px 10px; text-align:center; perspective:900px;}
+.hero h1{font-size:clamp(28px,6vw,48px); margin:0 0 8px; font-weight:900;
+  background:linear-gradient(90deg,var(--ice),var(--water),var(--rainbow2),var(--fire));
+  -webkit-background-clip:text; background-clip:text; color:transparent; background-size:300% auto;
+  animation:hue 8s linear infinite;}
+@keyframes hue{to{background-position:300% center;}}
+.hero p{color:var(--muted); max-width:560px; margin:0 auto 20px; font-size:15px;}
+.orb3d{ width:150px; height:150px; margin:0 auto 18px; position:relative; transform-style:preserve-3d; animation:spin3d 14s linear infinite;}
+.orb3d .ring{position:absolute; inset:0; border-radius:50%; border:2px solid transparent;
+  border-top-color:var(--ice); border-right-color:var(--water); border-bottom-color:var(--rainbow2); border-left-color:var(--fire);
+  filter:drop-shadow(0 0 14px rgba(120,160,255,.6));}
+.orb3d .ring:nth-child(2){transform:rotateX(60deg); animation:spin3d 9s linear infinite reverse;}
+.orb3d .ring:nth-child(3){transform:rotateY(60deg); animation:spin3d 11s linear infinite;}
+.orb3d .core{position:absolute; inset:26%; border-radius:50%;
+  background:radial-gradient(circle at 35% 30%, #fff, var(--water) 40%, var(--rainbow2) 80%);
+  box-shadow:0 0 40px var(--water), 0 0 80px var(--rainbow2) inset;}
+@keyframes spin3d{from{transform:rotateY(0deg) rotateX(10deg);} to{transform:rotateY(360deg) rotateX(10deg);}}
+
+/* ===== Dashboard grid ===== */
+.dashboard{padding:10px 16px 40px; max-width:1100px; margin:0 auto;}
+.grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:16px; margin-top:18px;}
+.card{padding:20px; cursor:pointer; transition:transform .25s ease, box-shadow .25s ease; position:relative; overflow:hidden;}
+.card:hover{transform:translateY(-6px) scale(1.015); box-shadow:0 18px 50px rgba(0,0,0,.5);}
+.card .icon{font-size:30px; margin-bottom:10px; display:inline-block;}
+.card h3{margin:0 0 6px; font-size:17px;}
+.card p{margin:0; color:var(--muted); font-size:13px; line-height:1.4;}
+.card .status{position:absolute; top:14px; right:14px; font-size:11px; padding:3px 9px; border-radius:10px; background:rgba(120,255,180,.15); color:#7CFFB2; border:1px solid rgba(124,255,178,.4);}
+.card .status.needs{background:rgba(255,190,110,.15); color:#FFC97A; border-color:rgba(255,201,122,.4);}
+
+/* ===== Sections / panels ===== */
+.view{display:none; padding:16px; max-width:900px; margin:0 auto 40px;}
+.view.active{display:block;}
+.panel{padding:20px; margin-bottom:16px;}
+.panel h2{margin-top:0; display:flex; align-items:center; gap:10px;}
+.back-btn{background:transparent; border:1px solid var(--glass-br); color:var(--text); padding:8px 14px; border-radius:14px; cursor:pointer; margin-bottom:14px;}
+
+/* ===== Chat ===== */
+#chat-log{display:flex; flex-direction:column; gap:10px; max-height:50vh; overflow-y:auto; margin-bottom:12px; padding-right:4px;}
+.msg{max-width:82%; padding:11px 15px; border-radius:16px; font-size:14.5px; line-height:1.45; white-space:pre-wrap;}
+.msg.user{align-self:flex-end; background:linear-gradient(135deg,var(--water),var(--rainbow2)); color:#fff; border-bottom-right-radius:4px;}
+.msg.assistant{align-self:flex-start; background:var(--glass-bg); border:1px solid var(--glass-br); border-bottom-left-radius:4px;}
+.msg.system{align-self:center; color:var(--muted); font-size:12.5px;}
+.input-row{display:flex; gap:8px;}
+.input-row input[type=text]{flex:1; background:var(--glass-bg); border:1px solid var(--glass-br); color:var(--text); border-radius:14px; padding:13px 16px; font-size:15px;}
+.btn{background:linear-gradient(135deg,var(--water),var(--rainbow2)); color:#fff; border:none; border-radius:14px; padding:0 18px; font-size:17px; cursor:pointer; min-width:48px;}
+.btn.ghost{background:var(--glass-bg); border:1px solid var(--glass-br); color:var(--text);}
+.btn.block{width:100%; padding:12px; margin-top:12px;}
+
+/* ===== Voice orb (big mic) ===== */
+.voice-stage{display:flex; flex-direction:column; align-items:center; gap:16px; padding:20px 0;}
+.mic-orb{width:140px; height:140px; border-radius:50%; position:relative; cursor:pointer;
+  background:radial-gradient(circle at 35% 30%, #fff1, var(--water) 55%, var(--rainbow2) 100%);
+  box-shadow:0 0 0 0 rgba(120,160,255,.5), var(--shadow);
+  display:flex; align-items:center; justify-content:center; font-size:46px;}
+.mic-orb.listening{animation:pulse 1.4s ease-out infinite;}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(120,160,255,.55);} 70%{box-shadow:0 0 0 40px rgba(120,160,255,0);} 100%{box-shadow:0 0 0 0 rgba(120,160,255,0);}}
+.voice-caption{color:var(--muted); font-size:14px; min-height:20px; text-align:center;}
+.voice-reply{max-width:520px; text-align:center; font-size:15.5px;}
+
+/* ===== Forms ===== */
+textarea{width:100%; min-height:130px; background:var(--glass-bg); border:1px solid var(--glass-br); color:var(--text); border-radius:14px; padding:13px; font-size:14px; resize:vertical;}
+select,input[type=text],input[type=password],input[type=url]{background:var(--glass-bg); border:1px solid var(--glass-br); color:var(--text); border-radius:12px; padding:11px 13px; font-size:14px; width:100%;}
+label{font-size:12.5px; color:var(--muted); margin:12px 0 5px; display:block;}
+.output-box{margin-top:12px; background:var(--glass-bg); border:1px solid var(--glass-br); border-radius:14px; padding:13px; white-space:pre-wrap; font-size:14px; min-height:60px;}
+
+/* ===== Kalliope command list ===== */
+.cmd-row{display:flex; gap:8px; margin-bottom:8px; align-items:center;}
+.cmd-row .label{flex:1; font-size:13.5px;}
+.cmd-row .del{background:transparent; border:none; color:#ff6b7a; cursor:pointer; font-size:16px;}
+
+/* ===== Settings modal ===== */
+#settings-panel{position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex; align-items:flex-end; justify-content:center; z-index:60;}
+#settings-panel.hidden{display:none;}
+.settings-card{width:100%; max-width:540px; max-height:85vh; overflow-y:auto; border-radius:22px 22px 0 0;
+  padding:22px; padding-bottom:calc(22px + env(safe-area-inset-bottom,0px));}
+.settings-card h2{margin-top:0;}
+
+footer{text-align:center; color:var(--muted); font-size:12px; padding:20px; opacity:.7;}
+@media (max-width: 760px) {
+  header.nav { flex-wrap:wrap; gap:10px; margin:6px; padding:10px; }
+  .brand { font-size:16px; }
+  .nav-links { order:3; width:100%; padding-bottom:2px; }
+  .theme-switch { gap:4px; }
+  .theme-dot { width:18px; height:18px; }
+  .hero { padding-top:22px; }
+  .input-row { flex-wrap:wrap; }
+  .input-row input[type=text] { min-width:0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration:0.01ms !important; animation-iteration-count:1 !important; scroll-behavior:auto !important; transition-duration:0.01ms !important; }
+}
+
+/* ===== JalalAI UI refinement v2: coherent, mobile-first, accessible ===== */
+:root{--gold:#f2b84b;--coral:#ff6b61;--deep-blue:#1e3a8a;--emerald:#20a779;--radius:20px;--shadow:0 14px 42px rgba(2,12,34,.24);--glass-blur:14px;scroll-padding-top:110px;}
+html{scroll-behavior:smooth;}
+body{min-height:100dvh;line-height:1.5;-webkit-text-size-adjust:100%;}
+.bg-layer{background:radial-gradient(ellipse at 12% 0%,rgba(30,58,138,.18),transparent 44%),var(--bg);}
+.blob{opacity:.22;filter:blur(90px);}
+.blob.ice{background:radial-gradient(circle,var(--water),transparent 70%);}
+.blob.water{background:radial-gradient(circle,var(--rainbow3),transparent 70%);}
+.blob.fire{background:radial-gradient(circle,var(--fire),transparent 70%);}
+.blob.rainbow{opacity:.13;}
+header.nav{width:min(calc(100% - 24px),1440px);margin:12px auto 0;padding:10px 14px;gap:14px;background:color-mix(in srgb,var(--bg) 82%,transparent);border-color:color-mix(in srgb,var(--glass-br) 70%,transparent);box-shadow:0 8px 30px rgba(0,0,0,.12);}
+.brand{flex:0 0 auto;white-space:nowrap;letter-spacing:-.25px;}
+.brand .logo{flex-shrink:0;}
+.nav-links{min-width:0;flex:1;justify-content:center;gap:5px;scrollbar-width:thin;scrollbar-color:var(--glass-br) transparent;overscroll-behavior-x:contain;}
+.nav-links button{min-height:42px;padding:9px 12px;font-weight:650;transition:background .18s ease,color .18s ease,border-color .18s ease;}
+.nav-links button.active{background:linear-gradient(135deg,var(--water),var(--rainbow2));box-shadow:0 5px 16px color-mix(in srgb,var(--water) 24%,transparent);}
+.theme-switch{flex:0 0 auto;align-items:center;gap:6px;}
+.theme-dot{appearance:none;-webkit-appearance:none;display:block;padding:0;flex:0 0 auto;box-shadow:0 0 0 1px rgba(255,255,255,.14);}
+.theme-dot:focus-visible{outline:3px solid var(--gold);outline-offset:3px;}
+.theme-dot.combo{background:conic-gradient(var(--coral),var(--deep-blue),var(--emerald),var(--gold));}
+#open-settings{min-width:42px;min-height:42px;padding:8px 12px!important;}
+.hero{padding:34px 20px 8px;}
+.hero h1{letter-spacing:-1.3px;line-height:1.08;}
+.hero p{max-width:620px;line-height:1.65;}
+.orb3d{width:112px;height:112px;margin-bottom:18px;}
+.dashboard{width:100%;max-width:1160px;padding:12px 20px 40px;}
+.grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:14px;margin-top:20px;}
+.card{min-height:184px;padding:22px;cursor:pointer;border-color:color-mix(in srgb,var(--glass-br) 85%,transparent);transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease;}
+.card::after{content:"";position:absolute;left:0;top:18px;bottom:18px;width:3px;border-radius:0 3px 3px 0;background:linear-gradient(var(--water),var(--rainbow3));opacity:.85;}
+.card:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--water) 45%,var(--glass-br));box-shadow:0 16px 36px rgba(0,0,0,.2);}
+.card:focus-visible{outline:3px solid var(--gold);outline-offset:3px;}
+.card .icon{font-size:27px;margin-bottom:13px;}
+.card h3{font-size:17px;letter-spacing:-.2px;}
+.card p{max-width:38ch;line-height:1.6;font-size:13.5px;}
+.card .status{top:14px;right:14px;max-width:calc(100% - 90px);white-space:normal;text-align:center;background:rgba(32,167,121,.13);color:color-mix(in srgb,var(--emerald) 80%,white);border-color:rgba(32,167,121,.4);}
+.card .status.needs{background:rgba(242,184,75,.13);color:var(--gold);border-color:rgba(242,184,75,.4);}
+.view{width:100%;max-width:980px;padding:18px 20px 42px;}
+.view>.dashboard{padding:0;}
+.panel{padding:clamp(16px,3vw,26px);border-color:color-mix(in srgb,var(--glass-br) 82%,transparent);}
+.panel h2{font-size:clamp(20px,3vw,25px);letter-spacing:-.45px;line-height:1.25;}
+.back-btn{min-height:42px;font-weight:650;}
+.btn{min-height:44px;font-weight:700;letter-spacing:.1px;transition:filter .18s ease,transform .18s ease;}
+.btn:hover{filter:brightness(1.08);}
+.btn:active{transform:translateY(1px);}
+button,input,select,textarea{font:inherit;}
+button{touch-action:manipulation;}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--gold);outline-offset:2px;}
+input,select,textarea{min-height:44px;}
+input::placeholder,textarea::placeholder{color:var(--muted);opacity:.82;}
+.input-row{align-items:stretch;}
+.input-row input[type=text]{min-width:0;min-height:48px;}
+.input-row .btn{min-width:48px;}
+#chat-log,#agent-log{overscroll-behavior:contain;scrollbar-gutter:stable;}
+.msg{overflow-wrap:anywhere;}
+.mic-orb{appearance:none;-webkit-appearance:none;border:1px solid color-mix(in srgb,var(--glass-br) 75%,transparent);color:white;flex:0 0 auto;touch-action:manipulation;}
+.voice-caption{max-width:100%;line-height:1.55;}
+.output-box{overflow-wrap:anywhere;line-height:1.6;}
+.cmd-row{min-width:0;}
+.cmd-row .label{min-width:0;overflow-wrap:anywhere;}
+.cmd-row .del{min-width:42px;min-height:42px;border-radius:10px;}
+#settings-panel{align-items:center;padding:20px;background:rgba(3,8,22,.68);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+.settings-card{width:min(100%,580px);max-height:min(88dvh,800px);border-radius:24px;padding:24px;overscroll-behavior:contain;}
+.settings-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;}
+.settings-heading h2{margin:0;}
+.settings-close{min-width:42px;min-height:42px;padding:0 12px;}
+#settings-panel label{margin-top:14px;}
+footer{line-height:1.6;max-width:760px;margin:0 auto;}
+@media (max-width:1000px){
+ header.nav{flex-wrap:wrap;gap:10px;}
+ .brand{order:0;}
+ header.nav>div:last-child{order:1;margin-left:auto;}
+ .nav-links{order:2;flex:1 0 100%;justify-content:flex-start;padding:2px 0 4px;}
+ .nav-links button{flex:0 0 auto;}
+}
+@media (max-width:600px){
+ header.nav{position:sticky;top:4px;width:calc(100% - 12px);margin:6px auto 0;padding:9px 10px;border-radius:17px;gap:8px;}
+ .brand{font-size:16px;gap:8px;}
+ .brand .logo{width:34px;height:34px;}
+ header.nav>div:last-child{gap:8px;}
+ .theme-switch{gap:5px;}
+ .theme-dot{width:17px;height:17px;}
+ .nav-links{margin:0 -2px;gap:5px;padding:2px 2px 6px;}
+ .nav-links button{min-height:40px;padding:8px 11px;font-size:12.5px;}
+ .hero{padding:25px 16px 5px;}
+ .hero h1{font-size:clamp(29px,8vw,40px);letter-spacing:-.9px;}
+ .hero p{font-size:14px;margin-bottom:10px;}
+ .orb3d{width:86px;height:86px;margin-bottom:16px;}
+ .dashboard{padding:10px 12px 28px;}
+ .grid{grid-template-columns:1fr;gap:11px;margin-top:16px;}
+ .card{min-height:0;padding:19px 18px 19px 21px;}
+ .card p{max-width:none;padding-right:3px;}
+ .view{padding:12px 12px 30px;}
+ .panel{padding:17px;border-radius:18px;}
+ .panel h2{align-items:flex-start;}
+ .input-row{display:grid;grid-template-columns:44px minmax(0,1fr) 46px;gap:6px;}
+ .input-row input[type=text]{grid-column:2;grid-row:1;padding:12px;font-size:16px;}
+ .input-row #mic-btn-chat{grid-column:1;grid-row:1;min-width:44px;padding:0;}
+ .input-row #send-btn,.input-row #agent-send{grid-column:3;grid-row:1;min-width:46px;padding:0;}
+ #agent-log{max-height:44dvh;}
+ #chat-log{max-height:48dvh;}
+ .mic-orb{width:118px;height:118px;font-size:40px;}
+ .voice-stage{padding:10px 0;}
+ .settings-card{padding:19px 17px calc(19px + env(safe-area-inset-bottom,0px));max-height:90dvh;}
+ #settings-panel{padding:10px;}
+ footer{padding:18px 16px;}
+}
+@media (max-width:360px){
+ .brand{font-size:15px;}
+ header.nav>div:last-child{gap:6px;}
+ .theme-switch{gap:4px;}
+ .theme-dot{width:15px;height:15px;}
+ #open-settings{min-width:38px;min-height:40px;padding:6px 9px!important;}
+ .nav-links button{padding:8px 10px;}
+ .input-row{grid-template-columns:40px minmax(0,1fr) 42px;gap:5px;}
+ .input-row #mic-btn-chat{min-width:40px;}
+ .input-row #send-btn,.input-row #agent-send{min-width:42px;}
+}
+@media (hover:none){.card:hover{transform:none;box-shadow:var(--shadow);}}
+@media (prefers-reduced-motion:reduce){.blob,.orb3d,.hero h1{animation:none!important;}html{scroll-behavior:auto;}}
+
+</style>
+</head>
+<body>
+
+<div class="bg-layer">
+  <div class="blob ice"></div>
+  <div class="blob water"></div>
+  <div class="blob fire"></div>
+  <div class="blob rainbow"></div>
+</div>
+<div class="noise"></div>
+
+<header class="nav glass">
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="var(--ice)"/>
+          <stop offset="55%" stop-color="var(--water)"/>
+          <stop offset="100%" stop-color="var(--rainbow2)"/>
+        </linearGradient>
+        <linearGradient id="lg-edge" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55"/>
+          <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <rect x="4" y="4" width="92" height="92" rx="26" fill="url(#lg)"/>
+      <rect x="4" y="4" width="92" height="92" rx="26" fill="none" stroke="url(#lg-edge)" stroke-width="2"/>
+      <text x="50" y="71" text-anchor="middle" font-family="Arial, Helvetica, sans-serif"
+            font-weight="800" font-size="56" fill="#ffffff">J</text>
+      <circle cx="76" cy="26" r="6" fill="#ffffff"/>
+      <circle cx="76" cy="26" r="11" fill="none" stroke="#ffffff" stroke-opacity="0.55" stroke-width="2"/>
+    </svg>
+    JalalAI
+  </div>
+  <nav class="nav-links" aria-label="Main navigation">
+    <button data-view="view-dashboard" class="active">Dashboard</button>
+    <button data-view="view-chat">Chat</button>
+    <button data-view="view-voice">Jalal Voice</button>
+    <button data-view="view-agent">Jalal Mind</button>
+    <button data-view="view-kalliope">Jalal Commands</button>
+    <button data-view="view-docs">Jalal Docs</button>
+    <button data-view="view-security">Jalal Shield</button>
+  </nav>
+  <div style="display:flex; align-items:center; gap:10px;">
+    <div class="theme-switch">
+      <button type="button" class="theme-dot ice" data-theme="ice" title="Ice theme" aria-label="Use ice theme"></button>
+      <button type="button" class="theme-dot water" data-theme="water" title="Water theme" aria-label="Use deep blue theme"></button>
+      <button type="button" class="theme-dot fire" data-theme="fire" title="Coral theme" aria-label="Use coral theme"></button>
+      <button type="button" class="theme-dot rainbow" data-theme="rainbow" title="Rainbow theme" aria-label="Use rainbow theme"></button>
+      <button type="button" class="theme-dot combo" style="background:conic-gradient(var(--fire),var(--water),var(--rainbow3),var(--gold))" data-theme="combo" title="JalalAI signature theme" aria-label="Use JalalAI signature theme"></button>
+    </div>
+    <button id="open-settings" type="button" aria-haspopup="dialog" aria-controls="settings-panel" class="btn ghost" style="border-radius:14px; padding:8px 14px; font-size:13px;">⚙</button>
+  </div>
+</header>
+
+<!-- ============ DASHBOARD (home) ============ -->
+<section id="view-dashboard" class="view active">
+  <div class="hero">
+    <div class="orb3d" id="hero-orb">
+      <div class="ring"></div><div class="ring"></div><div class="ring"></div>
+      <div class="core"></div>
+    </div>
+    <h1>JalalAI Agent</h1>
+    <p>One dashboard, six assistants. Pick one below — each opens its own working panel. Browser-based assistant with your chosen provider. Provider usage limits and backend requirements apply.</p>
+  </div>
+  <div class="dashboard">
+    <div class="grid">
+      <div class="card glass" data-view="view-chat" role="button" tabindex="0">
+        <span class="status">Ready</span>
+        <div class="icon">💬</div><h3>Unified Chat</h3>
+        <p>Talk to everything at once. Local skills answer instantly, anything else goes to your AI model.</p>
+      </div>
+      <div class="card glass" data-view="view-voice" role="button" tabindex="0">
+        <span class="status">Ready</span>
+        <div class="icon">🎙️</div><h3>Jalal Voice</h3>
+        <p>Tap the orb, speak, get a spoken answer back — the classic "just talk to it" assistant.</p>
+      </div>
+      <div class="card glass" data-view="view-agent" role="button" tabindex="0">
+        <span class="status">Ready</span>
+        <div class="icon">🧠</div><h3>Jalal Mind</h3>
+        <p>Goal-planning mode: give it an objective, it breaks it into numbered steps and next actions.</p>
+      </div>
+      <div class="card glass" data-view="view-kalliope" role="button" tabindex="0">
+        <span class="status">Ready</span>
+        <div class="icon">🗣️</div><h3>Jalal Commands</h3>
+        <p>Build your own voice commands - "say X, do Y" - no AI key needed, fully offline logic.</p>
+      </div>
+      <div class="card glass" data-view="view-docs" role="button" tabindex="0">
+        <span class="status">Ready</span>
+        <div class="icon">📄</div><h3>Jalal Docs</h3>
+        <p>Paste text - summarize, rewrite, expand, or translate to Urdu.</p>
+      </div>
+      <div class="card glass" data-view="view-security" role="button" tabindex="0">
+        <span class="status needs">Needs your server</span>
+        <div class="icon">🛡️</div><h3>Jalal Shield</h3>
+        <p>Connector only. Point it at your own deployed security backend to check it's alive.</p>
+      </div>
+    </div>
+  </div>
+  <footer>JalalAI Agent — your keys stay in your browser, sent only to the Base URL you set.</footer>
+</section>
+
+<!-- ============ UNIFIED CHAT ============ -->
+<section id="view-chat" class="view">
+  <div class="dashboard" style="max-width:720px;">
+    <button class="back-btn" data-view="view-dashboard">← Dashboard</button>
+    <div class="panel glass">
+      <h2>💬 Unified Chat</h2>
+      <div id="chat-log"></div>
+      <div class="input-row">
+        <button class="btn ghost" id="mic-btn-chat">🎙</button>
+        <input type="text" id="chat-input" placeholder="Type: time, date, joke, wikipedia AI, open youtube, or anything...">
+        <button class="btn" id="send-btn">➤</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ JARVIS VOICE ============ -->
+<section id="view-voice" class="view">
+  <div class="dashboard" style="max-width:640px;">
+    <button class="back-btn" data-view="view-dashboard">← Dashboard</button>
+    <div class="panel glass voice-stage">
+      <h2>🎙️ Jalal Voice</h2>
+      <button type="button" class="mic-orb" id="mic-orb" aria-label="Start voice input">🎙️</button>
+      <div class="voice-caption" id="voice-caption">Tap the orb and speak.</div>
+      <div class="voice-reply output-box" id="voice-reply">Your spoken answer will appear here too.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ OPENJARVIS AGENT ============ -->
+<section id="view-agent" class="view">
+  <div class="dashboard" style="max-width:720px;">
+    <button class="back-btn" data-view="view-dashboard">← Dashboard</button>
+    <div class="panel glass">
+      <h2>🧠 Jalal Mind</h2>
+      <div class="hint" style="color:var(--muted); font-size:13px; margin-bottom:10px;">
+        Give it a goal - it plans numbered steps. For full agent memory / scheduling,
+        deploy the full planning backend (from the integrations bundle) and set its URL below.
+      </div>
+      <div id="agent-log" style="display:flex; flex-direction:column; gap:10px; max-height:40vh; overflow-y:auto; margin-bottom:12px;"></div>
+      <div class="input-row">
+        <input type="text" id="agent-input" placeholder="e.g. Plan a 7-day launch for my app">
+        <button class="btn" id="agent-send">➤</button>
+      </div>
+      <label>Your Jalal Mind backend URL (optional)</label>
+      <input type="text" id="openjarvis-url-display" disabled placeholder="set in Settings">
+      <button class="btn ghost block" id="agent-check">Check connection</button>
+      <div class="output-box" id="agent-status">Not checked yet.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ KALLIOPE ============ -->
+<section id="view-kalliope" class="view">
+  <div class="dashboard" style="max-width:720px;">
+    <button class="back-btn" data-view="view-dashboard">← Dashboard</button>
+    <div class="panel glass voice-stage">
+      <h2>🗣️ Jalal Commands - custom voice commands</h2>
+      <button type="button" class="mic-orb" id="kalliope-mic" aria-label="Start custom command voice input" style="width:110px;height:110px;font-size:36px;">🎙️</button>
+      <div class="voice-caption" id="kalliope-caption">Tap and say a phrase you've registered below.</div>
+      <div class="output-box" id="kalliope-result" style="width:100%;">No command run yet.</div>
+    </div>
+    <div class="panel glass">
+      <h3 style="margin-top:0;">Your commands</h3>
+      <div id="cmd-list"></div>
+      <label>Trigger phrase (what you'll say)</label>
+      <input type="text" id="cmd-trigger" placeholder="e.g. open my portfolio">
+      <label>Action</label>
+      <select id="cmd-action">
+        <option value="open">Open a website</option>
+        <option value="say">Just say something back</option>
+      </select>
+      <label>Value (URL, or the reply text)</label>
+      <input type="text" id="cmd-value" placeholder="e.g. myportfolio.com">
+      <button class="btn block" id="cmd-add">+ Add command</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ GENOFFICE DOCS ============ -->
+<section id="view-docs" class="view">
+  <div class="dashboard" style="max-width:720px;">
+    <button class="back-btn" data-view="view-dashboard">← Dashboard</button>
+    <div class="panel glass">
+      <h2>📄 Jalal Docs</h2>
+      <textarea id="doc-input" placeholder="Paste text to summarize, rewrite, expand, or translate..."></textarea>
+      <label>Action</label>
+      <select id="doc-action">
+        <option value="summarize">Summarize (5 bullets)</option>
+        <option value="rewrite">Rewrite (clearer, professional)</option>
+        <option value="expand">Expand with headings</option>
+        <option value="translate_ur">Translate to Urdu</option>
+      </select>
+      <button class="btn block" id="doc-run">Run</button>
+      <div class="output-box" id="doc-output">Output will appear here.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PENTAGI SECURITY ============ -->
+<section id="view-security" class="view">
+  <div class="dashboard" style="max-width:720px;">
+    <button class="back-btn" data-view="view-dashboard">← Dashboard</button>
+    <div class="panel glass">
+      <h2>🛡️ Jalal Shield</h2>
+      <div class="hint" style="color:var(--muted); font-size:13px; margin-bottom:10px;">
+        Informational connector only - this tab does not run scans or attacks from
+        the browser. Deploy the full security backend (Docker, from the integrations
+        bundle) on your own server, then check it's reachable here. Only test systems
+        you own or are authorized to test.
+      </div>
+      <label>Your Jalal Shield backend URL</label>
+      <input type="text" id="pentagi-url-display" disabled placeholder="set in Settings">
+      <button class="btn block" id="pentagi-check">Check connection</button>
+      <div class="output-box" id="pentagi-status">Not checked yet.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SETTINGS MODAL ============ -->
+<div id="settings-panel" class="hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+  <div class="settings-card glass">
+    <div class="settings-heading"><h2 id="settings-title">⚙ Settings</h2><button type="button" id="close-settings" class="btn ghost settings-close" aria-label="Close settings">✕</button></div>
+    <label>API Key (OpenAI or any compatible provider)</label>
+    <input type="password" id="api-key" placeholder="sk-...">
+    <label>Base URL</label>
+    <input type="text" id="base-url" placeholder="https://api.openai.com/v1">
+    <label>Model name</label>
+    <input type="text" id="model-name" placeholder="gpt-4o-mini">
+    <label>Jalal Shield backend URL (optional)</label>
+    <input type="text" id="pentagi-url" placeholder="https://your-vps:8443">
+    <label>Jalal Mind backend URL (optional)</label>
+    <input type="text" id="openjarvis-url" placeholder="https://your-vps:port">
+    <button class="btn block" id="save-settings">Save</button>
+    <div class="hint" style="color:var(--muted); font-size:12.5px; margin-top:12px;">
+      The API key is stored in this browser's local storage and sent to the Base URL you set. Anyone with access to this browser profile may be able to retrieve it. Use only on a trusted device; production deployments should use a server-side secret store.
+    </div>
+  </div>
+</div>
+
+<script>"use strict";
+/* =========================================================================
+   JalalAI Agent - one dashboard, six assistants, each usable on its own.
+   Everything here actually runs in the browser. Honest limits are in the
+   README, not hidden in the code: PentAGI/OpenJarvis/Kalliope "deep"
+   server features still need their real backend deployed on your VPS;
+   this file gives each of them a genuinely working front-end + connector.
+   ========================================================================= */
+
+const LS = {
+  apiKey: "jalalai_api_key",
+  baseUrl: "jalalai_base_url",
+  model: "jalalai_model",
+  pentagiUrl: "jalalai_pentagi_url",
+  openjarvisUrl: "jalalai_openjarvis_url",
+  history: "jalalai_chat_history",
+  commands: "jalalai_custom_commands",
+  theme: "jalalai_theme",
+};
+
+const state = {
+  apiKey: localStorage.getItem(LS.apiKey) || "",
+  baseUrl: localStorage.getItem(LS.baseUrl) || "https://api.openai.com/v1",
+  model: localStorage.getItem(LS.model) || "gpt-4o-mini",
+  pentagiUrl: localStorage.getItem(LS.pentagiUrl) || "",
+  openjarvisUrl: localStorage.getItem(LS.openjarvisUrl) || "",
+  history: safeReadArray(LS.history),
+  commands: safeReadArray(LS.commands),
+};
+
+function safeReadArray(key) {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(value) ? value.filter(x => x && typeof x === "object") : [];
+  } catch (_) { return []; }
+}
+function persist(key, value) {
+  try { localStorage.setItem(key, typeof value === "string" ? value : JSON.stringify(value)); }
+  catch (_) { console.warn("JalalAI could not save local data. Browser storage may be full or disabled."); }
+}
+function saveSettings() {
+  persist(LS.apiKey, state.apiKey); persist(LS.baseUrl, state.baseUrl);
+  persist(LS.model, state.model); persist(LS.pentagiUrl, state.pentagiUrl);
+  persist(LS.openjarvisUrl, state.openjarvisUrl);
+}
+function saveHistory() { if (state.history.length > 60) state.history = state.history.slice(-60); persist(LS.history, state.history); }
+function saveCommands() { persist(LS.commands, state.commands); }
+
+/* ---------------- Theme (Ice / Water / Fire / Rainbow / Combo) ---------------- */
+const THEMES = {
+  ice:      { "--ice":"#7fe3ff", "--water":"#3aa0ff", "--fire":"#7fe3ff", "--rainbow1":"#aef2ff", "--rainbow2":"#3aa0ff", "--rainbow3":"#d8fbff" },
+  water:    { "--ice":"#3ad0ff", "--water":"#1f6fe0", "--fire":"#3ad0ff", "--rainbow1":"#49c6ff", "--rainbow2":"#1f6fe0", "--rainbow3":"#8be3ff" },
+  fire:     { "--ice":"#ffb36b", "--water":"#ff7a3d", "--fire":"#ff4d2e", "--rainbow1":"#ffd36b", "--rainbow2":"#ff4d2e", "--rainbow3":"#ff8a3d" },
+  rainbow:  { "--ice":"#ff5caa", "--water":"#7a5cff", "--fire":"#ffb020", "--rainbow1":"#ff5caa", "--rainbow2":"#7a5cff", "--rainbow3":"#5cffd0" },
+  combo:    { "--ice":"#6ba8ff", "--water":"#1e3a8a", "--fire":"#ff6b61", "--rainbow1":"#ff6b61", "--rainbow2":"#1e3a8a", "--rainbow3":"#20a779" },
+};
+function applyTheme(name) {
+  const vars = THEMES[name] || THEMES.combo;
+  Object.entries(vars).forEach(([k, v]) => document.documentElement.style.setProperty(k, v));
+  persist(LS.theme, name);
+}
+
+/* ---------------- Speech ---------------- */
+function speak(text) {
+  try {
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.0;
+    window.speechSynthesis.speak(u);
+  } catch (e) { /* speech synthesis unavailable - text is still shown */ }
+}
+function listenOnce(onResult, onCaption) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { onCaption("Voice input not supported in this browser - type instead."); return null; }
+  const rec = new SR();
+  rec.lang = "en-US"; rec.interimResults = false; rec.maxAlternatives = 1;
+  rec.onresult = (ev) => onResult(ev.results[0][0].transcript);
+  rec.onerror = () => onCaption("Mic error or permission denied.");
+  rec.onend = () => onCaption("");
+  rec.start();
+  return rec;
+}
+
+function normalizeSafeUrl(value) {
+  try {
+    const raw = String(value || "").trim();
+    const candidate = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    const url = new URL(candidate);
+    if (!["http:", "https:"].includes(url.protocol) || !url.hostname || url.username || url.password) return null;
+    return url.href;
+  } catch (_) { return null; }
+}
+
+/* ---------------- Local skills engine (no key needed) ---------------- */
+async function tryLocalSkill(raw) {
+  const q = raw.toLowerCase().trim();
+
+  // user-defined Kalliope-style commands take priority
+  for (const c of state.commands) {
+    if (q.includes(c.trigger.toLowerCase())) {
+      if (c.action === "open") {
+        const target = normalizeSafeUrl(c.value);
+        if (!target) return "Blocked: this command has an invalid website URL.";
+        window.open(target, "_blank", "noopener,noreferrer");
+        return `Opening ${target}.`;
+      }
+      if (c.action === "say") { return c.value; }
+    }
+  }
+
+  if (q.includes("time")) return `The current time is ${new Date().toLocaleTimeString()}.`;
+  if (q.includes("date")) return `Today is ${new Date().toLocaleDateString(undefined,{weekday:"long",year:"numeric",month:"long",day:"numeric"})}.`;
+  if (q.includes("joke")) {
+    const jokes = ["Why do programmers prefer dark mode? Because light attracts bugs.",
+      "I told my computer I needed a break - now it won't stop sleeping.",
+      "There are 10 kinds of people: those who understand binary and those who don't."];
+    return jokes[Math.floor(Math.random()*jokes.length)];
+  }
+  if (q.startsWith("open ")) {
+    let site = q.replace("open ","").trim();
+    const shortcuts = {youtube:"youtube.com", google:"google.com", github:"github.com"};
+    site = shortcuts[site] || site;
+    if (!site.includes(".")) site += ".com";
+    const url = normalizeSafeUrl(site);
+    if (!url) return "I couldn't open that address. Use a valid http:// or https:// website.";
+    window.open(url, "_blank", "noopener,noreferrer");
+    return `Opening ${url}`;
+  }
+  if (q.startsWith("wikipedia ") || q.startsWith("search wikipedia ")) {
+    const topic = q.replace("search wikipedia","").replace("wikipedia","").trim();
+    try {
+      const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(topic)}`);
+      if (!res.ok) return `Couldn't find a Wikipedia page for "${topic}".`;
+      const data = await res.json();
+      return data.extract || `No summary for "${topic}".`;
+    } catch (e) { return "Wikipedia lookup failed (network issue)."; }
+  }
+  return null;
+}
+
+/* ---------------- LLM call (any OpenAI-compatible endpoint) ---------------- */
+async function callLLM(messages) {
+  const isLocalHost = state.baseUrl.includes("localhost") || state.baseUrl.includes("127.0.0.1");
+  if (!state.apiKey && !isLocalHost) {
+    return "No API key set. Open Settings and add one (or point Base URL at a local model like Ollama, which needs no key).";
+  }
+  try {
+    const res = await fetch(`${state.baseUrl.replace(/\/$/,"")}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type":"application/json", ...(state.apiKey ? {Authorization:`Bearer ${state.apiKey}`} : {}) },
+      body: JSON.stringify({ model: state.model, messages, temperature: 0.7, max_tokens: 700 }),
+    });
+    if (!res.ok) {
+      let detail = "";
+      try { const body = await res.json(); detail = body.error?.message || body.message || ""; } catch (_) {}
+      return `API error (${res.status})${detail ? ": " + detail.slice(0,180) : ". Check the Base URL, model, key, provider quota, and browser console."}`;
+    }
+    const data = await res.json();
+    const content = data.choices?.[0]?.message?.content;
+    return typeof content === "string" && content.trim() ? content : "The provider returned no text response.";
+  } catch (e) { return `Network error: ${e.message}`; }
+}
+
+/* ---------------- Chat (used by Chat tab + Jarvis Voice tab) ---------------- */
+function appendMessage(role, text, id) {
+  const log = document.getElementById("chat-log");
+  const div = document.createElement("div");
+  div.className = `msg ${role}`;
+  if (id) div.id = id;
+  div.textContent = text;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+function removeEl(id) { const el = document.getElementById(id); if (el) el.remove(); }
+
+async function handleChatMessage(text, systemPrompt) {
+  appendMessage("user", text);
+  state.history.push({role:"user", content:text}); saveHistory();
+  const local = await tryLocalSkill(text);
+  let reply;
+  if (local !== null) { reply = local; }
+  else {
+    appendMessage("assistant", "…thinking…", "typing-indicator");
+    reply = await callLLM([{role:"system", content: systemPrompt || "You are Jalal, a helpful, concise assistant."}, ...state.history.slice(-10)]);
+    removeEl("typing-indicator");
+  }
+  appendMessage("assistant", reply);
+  state.history.push({role:"assistant", content:reply}); saveHistory();
+  return reply;
+}
+
+/* ---------------- Document tool (GenOffice-style) ---------------- */
+async function runDocTool(action, inputText) {
+  const prompts = {
+    summarize: `Summarize the following text in 5 concise bullet points:\n\n${inputText}`,
+    rewrite: `Rewrite the following text to be clearer and more professional, keep the same meaning:\n\n${inputText}`,
+    translate_ur: `Translate the following text into natural Urdu:\n\n${inputText}`,
+    expand: `Expand the following into a fuller, well-structured version with headings:\n\n${inputText}`,
+  };
+  return callLLM([{role:"system", content:"You are a precise document editing assistant."}, {role:"user", content:prompts[action]}]);
+}
+
+/* ---------------- Connectors (PentAGI, OpenJarvis - your own backend) ---------------- */
+async function pingUrl(url, path) {
+  if (!url) return "No URL set in Settings.";
+  try {
+    const res = await fetch(`${url.replace(/\/$/,"")}${path}`, { mode:"cors" });
+    return res.ok ? "Reachable - your backend responded." : `Responded with status ${res.status}.`;
+  } catch (e) { return "Could not reach it (check URL / CORS / network)."; }
+}
+
+/* ---------------- Navigation (dashboard <-> per-assistant views) ---------------- */
+function showView(id) {
+  document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+  document.querySelectorAll(".nav-links button").forEach(b => {
+    const active = b.dataset.view === id;
+    b.classList.toggle("active", active);
+    if (active) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+  });
+  window.scrollTo({top:0, behavior:matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
+}
+
+/* ---------------- Kalliope custom commands UI ---------------- */
+function renderCommands() {
+  const wrap = document.getElementById("cmd-list");
+  wrap.innerHTML = "";
+  state.commands.forEach((c, i) => {
+    const row = document.createElement("div");
+    row.className = "cmd-row glass";
+    row.style.padding = "8px 12px";
+    const label = document.createElement("span");
+    label.className = "label";
+    label.textContent = `"${String(c.trigger || "")}" → ${c.action === "open" ? "open " + String(c.value || "") : "say: " + String(c.value || "")}`;
+    row.appendChild(label);
+    const del = document.createElement("button");
+    del.className = "del"; del.textContent = "✕";
+    del.addEventListener("click", () => { state.commands.splice(i,1); saveCommands(); renderCommands(); });
+    row.appendChild(del);
+    wrap.appendChild(row);
+  });
+}
+
+/* ---------------- Init ---------------- */
+function initUI() {
+  // theme
+  const savedTheme = localStorage.getItem(LS.theme) || "combo";
+  applyTheme(savedTheme);
+  document.querySelectorAll(".theme-dot").forEach(dot => {
+    dot.addEventListener("click", () => {
+      applyTheme(dot.dataset.theme);
+      document.querySelectorAll(".theme-dot").forEach(other => {
+        other.setAttribute("aria-pressed", String(other === dot));
+      });
+    });
+    dot.setAttribute("aria-pressed", String(dot.dataset.theme === savedTheme));
+  });
+
+  // settings
+  document.getElementById("api-key").value = state.apiKey;
+  document.getElementById("base-url").value = state.baseUrl;
+  document.getElementById("model-name").value = state.model;
+  document.getElementById("pentagi-url").value = state.pentagiUrl;
+  document.getElementById("openjarvis-url").value = state.openjarvisUrl;
+  document.getElementById("pentagi-url-display").value = state.pentagiUrl;
+  document.getElementById("openjarvis-url-display").value = state.openjarvisUrl;
+  const settingsPanel = document.getElementById("settings-panel");
+  const settingsOpener = document.getElementById("open-settings");
+  const closeSettings = () => { settingsPanel.classList.add("hidden"); settingsOpener.focus(); };
+  settingsOpener.addEventListener("click", () => {
+    settingsPanel.classList.remove("hidden");
+    document.getElementById("api-key").focus();
+  });
+  document.getElementById("close-settings").addEventListener("click", closeSettings);
+  settingsPanel.addEventListener("click", event => { if (event.target === settingsPanel) closeSettings(); });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && !settingsPanel.classList.contains("hidden")) closeSettings();
+  });
+  document.getElementById("save-settings").addEventListener("click", () => {
+    const apiKey = document.getElementById("api-key").value.trim();
+    const baseUrl = document.getElementById("base-url").value.trim().replace(/\/$/, "");
+    const model = document.getElementById("model-name").value.trim();
+    let parsedBase;
+    try { parsedBase = new URL(baseUrl); } catch (_) {}
+    if (!parsedBase || !["https:", "http:"].includes(parsedBase.protocol) || !model) {
+      alert("Enter a valid API Base URL and a model name.");
+      return;
+    }
+    if (parsedBase.protocol === "http:" && !["localhost", "127.0.0.1", "::1"].includes(parsedBase.hostname)) {
+      alert("For a remote provider, use HTTPS. HTTP is allowed only for localhost.");
+      return;
+    }
+    state.apiKey = apiKey;
+    state.baseUrl = baseUrl;
+    state.model = model;
+    state.pentagiUrl = document.getElementById("pentagi-url").value.trim().replace(/\/$/, "");
+    state.openjarvisUrl = document.getElementById("openjarvis-url").value.trim().replace(/\/$/, "");
+    saveSettings();
+    document.getElementById("pentagi-url-display").value = state.pentagiUrl;
+    document.getElementById("openjarvis-url-display").value = state.openjarvisUrl;
+    closeSettings();
+  });
+
+  // dashboard cards + navbar -> views
+  document.querySelectorAll("[data-view]").forEach(el => {
+    el.addEventListener("click", () => showView(el.dataset.view));
+    if (el.classList.contains("card")) {
+      el.addEventListener("keydown", event => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          showView(el.dataset.view);
+        }
+      });
+    }
+  });
+
+  // ===== Chat tab =====
+  document.getElementById("send-btn").addEventListener("click", () => {
+    const input = document.getElementById("chat-input");
+    const text = input.value.trim(); if (!text) return;
+    input.value = "";
+    handleChatMessage(text, "You are Jalal, a helpful, concise general assistant.").then(speak);
+  });
+  document.getElementById("chat-input").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("send-btn").click(); });
+  document.getElementById("mic-btn-chat").addEventListener("click", () => {
+    listenOnce(text => { document.getElementById("chat-input").value = text; document.getElementById("send-btn").click(); }, () => {});
+  });
+  state.history.forEach(m => appendMessage(m.role, m.content));
+
+  // ===== Jarvis Voice tab (big orb) =====
+  const orb = document.getElementById("mic-orb");
+  const caption = document.getElementById("voice-caption");
+  const replyBox = document.getElementById("voice-reply");
+  orb.addEventListener("click", () => {
+    orb.classList.add("listening");
+    caption.textContent = "Listening…";
+    listenOnce(async (text) => {
+      caption.textContent = `You said: "${text}"`;
+      const reply = await handleChatMessage(text, "You are Jalal, a witty, efficient voice assistant. Keep spoken replies short.");
+      replyBox.textContent = reply;
+      speak(reply);
+      orb.classList.remove("listening");
+    }, (msg) => { orb.classList.remove("listening"); if (msg) caption.textContent = msg; });
+  });
+
+  // ===== OpenJarvis Agent tab (task-planning persona, separate thread) =====
+  document.getElementById("agent-send").addEventListener("click", async () => {
+    const input = document.getElementById("agent-input");
+    const text = input.value.trim(); if (!text) return;
+    input.value = "";
+    const out = document.getElementById("agent-log");
+    const uDiv = document.createElement("div"); uDiv.className="msg user"; uDiv.textContent=text; out.appendChild(uDiv);
+    const tDiv = document.createElement("div"); tDiv.className="msg assistant"; tDiv.id="agent-typing"; tDiv.textContent="…planning…"; out.appendChild(tDiv);
+    out.scrollTop = out.scrollHeight;
+    const reply = await callLLM([
+      {role:"system", content:"You are Jalal Mind, an agentic planner. Break the user's goal into clear numbered steps, then give the best next action."},
+      {role:"user", content:text},
+    ]);
+    tDiv.remove();
+    const aDiv = document.createElement("div"); aDiv.className="msg assistant"; aDiv.textContent=reply; out.appendChild(aDiv);
+    out.scrollTop = out.scrollHeight;
+  });
+  document.getElementById("agent-input").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("agent-send").click(); });
+  document.getElementById("agent-check").addEventListener("click", async () => {
+    document.getElementById("agent-status").textContent = await pingUrl(state.openjarvisUrl, "/health");
+  });
+
+  // ===== Kalliope tab (custom voice commands, no AI needed) =====
+  renderCommands();
+  document.getElementById("cmd-add").addEventListener("click", () => {
+    const trigger = document.getElementById("cmd-trigger").value.trim();
+    const action = document.getElementById("cmd-action").value;
+    const value = document.getElementById("cmd-value").value.trim();
+    if (!trigger || !value) return;
+    state.commands.push({trigger, action, value});
+    saveCommands(); renderCommands();
+    document.getElementById("cmd-trigger").value = ""; document.getElementById("cmd-value").value = "";
+  });
+  document.getElementById("kalliope-mic").addEventListener("click", () => {
+    const cap = document.getElementById("kalliope-caption");
+    cap.textContent = "Listening…";
+    listenOnce(async (text) => {
+      cap.textContent = `Heard: "${text}"`;
+      const local = await tryLocalSkill(text);
+      const resultEl = document.getElementById("kalliope-result");
+      resultEl.textContent = local || "No matching command. Add one below, or this phrase isn't registered.";
+      if (local) speak(local);
+    }, (msg) => { if (msg) cap.textContent = msg; });
+  });
+
+  // ===== GenOffice Documents tab =====
+  document.getElementById("doc-run").addEventListener("click", async () => {
+    const action = document.getElementById("doc-action").value;
+    const input = document.getElementById("doc-input").value.trim();
+    const out = document.getElementById("doc-output");
+    if (!input) return;
+    out.textContent = "Working…";
+    out.textContent = await runDocTool(action, input);
+  });
+
+  // ===== PentAGI Security tab =====
+  document.getElementById("pentagi-check").addEventListener("click", async () => {
+    document.getElementById("pentagi-status").textContent = await pingUrl(state.pentagiUrl, "/health");
+  });
+
+  // 3D tilt on hero orb (mouse/touch parallax)
+  const heroOrb = document.getElementById("hero-orb");
+  if (heroOrb && matchMedia("(hover: hover) and (pointer: fine)").matches && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    document.addEventListener("mousemove", (e) => {
+      const x = (e.clientX / window.innerWidth - 0.5) * 20;
+      const y = (e.clientY / window.innerHeight - 0.5) * -20;
+      heroOrb.style.transform = `rotateY(${x}deg) rotateX(${y}deg)`;
+    });
+  }
+
+  showView("view-dashboard");
+}
+
+document.addEventListener("DOMContentLoaded", initUI);
+</script>
+</body>
+</html>

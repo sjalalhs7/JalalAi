@@ -1,0 +1,9 @@
+{
+  "name": "jalalai-professional-completion",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "check": "node --check worker/index.js && node --check tests/worker.test.js && node --check tests/frontend.test.js"
+  }
+}
